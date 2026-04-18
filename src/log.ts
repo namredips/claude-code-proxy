@@ -21,7 +21,7 @@ const REDACT_KEYS = new Set([
 
 function stateDir(): string {
   const base = process.env.XDG_STATE_HOME || join(homedir(), ".local", "state")
-  return join(base, "claude-code-chatgpt-proxy")
+  return join(base, "claude-openai-proxy")
 }
 
 export function logDir(): string {

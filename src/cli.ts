@@ -67,11 +67,11 @@ async function main() {
 
 function usageAndExit(): never {
   console.log(`Usage:
-  ccxp serve                      Run proxy (PORT env, default 11434)
-  ccxp auth login                 Browser OAuth (PKCE)
-  ccxp auth device                Device-code OAuth
-  ccxp auth status                Show current auth
-  ccxp auth logout                Clear stored auth
+  claude-openai-proxy serve              Run proxy (PORT env, default 11434)
+  claude-openai-proxy auth login         Browser OAuth (PKCE)
+  claude-openai-proxy auth device        Device-code OAuth
+  claude-openai-proxy auth status        Show current auth
+  claude-openai-proxy auth logout        Clear stored auth
 `)
   process.exit(2)
 }
