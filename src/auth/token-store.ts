@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, chmod } from "node:fs/promises"
+import { mkdir, readFile, writeFile, chmod, unlink } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { homedir } from "node:os"
 
@@ -34,9 +34,9 @@ export async function saveAuth(auth: StoredAuth): Promise<void> {
 
 export async function clearAuth(): Promise<void> {
   try {
-    await writeFile(FILE, "", "utf8")
-  } catch {
-    // noop
+    await unlink(FILE)
+  } catch (err: any) {
+    if (err?.code !== "ENOENT") throw err
   }
 }
 
