@@ -73,6 +73,7 @@ async function runStream(
   const itemToOutputIndex = new Map<string, number>()
   let sawToolUse = false
   let finalUsage: CodexUsage | undefined
+  let incomplete = false
   let rateLimitReached = false
   let rateLimitResetSeconds: number | undefined
 
@@ -249,8 +250,12 @@ async function runStream(
       continue
     }
 
-    if (type === "response.completed") {
+    if (type === "response.completed" || type === "response.incomplete") {
       finalUsage = payload.response?.usage
+      const reason = payload.response?.incomplete_details?.reason
+      if (type === "response.incomplete" || reason === "max_output_tokens" || payload.response?.status === "incomplete") {
+        incomplete = true
+      }
       continue
     }
 
@@ -281,7 +286,7 @@ async function runStream(
   emit("message_delta", {
     type: "message_delta",
     delta: {
-      stop_reason: sawToolUse ? "tool_use" : "end_turn",
+      stop_reason: incomplete ? "max_tokens" : sawToolUse ? "tool_use" : "end_turn",
       stop_sequence: null,
     },
     usage,

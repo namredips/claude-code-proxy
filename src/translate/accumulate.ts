@@ -45,6 +45,7 @@ export async function accumulateResponse(
   >()
   const itemToOutputIndex = new Map<string, number>()
   let sawToolUse = false
+  let incomplete = false
   let usage: any
   const orderedIndices: number[] = []
 
@@ -113,8 +114,12 @@ export async function accumulateResponse(
       if (b && b.kind === "tool" && !b.args && typeof item?.arguments === "string") b.args = item.arguments
       continue
     }
-    if (t === "response.completed") {
+    if (t === "response.completed" || t === "response.incomplete") {
       usage = p.response?.usage
+      const reason = p.response?.incomplete_details?.reason
+      if (t === "response.incomplete" || reason === "max_output_tokens" || p.response?.status === "incomplete") {
+        incomplete = true
+      }
       continue
     }
   }
@@ -142,7 +147,7 @@ export async function accumulateResponse(
     role: "assistant",
     model: opts.model,
     content,
-    stop_reason: sawToolUse ? "tool_use" : "end_turn",
+    stop_reason: incomplete ? "max_tokens" : sawToolUse ? "tool_use" : "end_turn",
     stop_sequence: null,
     usage: {
       input_tokens: usage?.input_tokens ?? 0,
