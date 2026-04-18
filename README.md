@@ -101,15 +101,13 @@ Confirmed working on **Plus**:
 - `gpt-5.4`
 - `gpt-5.3-codex`
 
-Likely available on **Pro / Enterprise** (not tested by this project, but part
-of the Codex CLI allowlist):
+Also verified working on this project:
 
-- `gpt-5.1-codex`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`
-- `gpt-5.2`, `gpt-5.2-codex`
+- `gpt-5.2`
 - `gpt-5.4-mini`
 
 If you pass a model your account isn't entitled to, upstream returns a 400 like
-`"The 'gpt-5.1-codex' model is not supported when using Codex with a ChatGPT account."`
+`"The 'gpt-4.1' model is not supported when using Codex with a ChatGPT account."`
 — the proxy surfaces it verbatim.
 
 ## How it works
