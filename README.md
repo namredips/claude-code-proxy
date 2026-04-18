@@ -48,22 +48,6 @@ bun install
 bun src/cli.ts --version
 ```
 
-**Dev install globally** — link the working tree so `claude-codex-proxy`
-is on your `PATH` and picks up local edits live:
-
-```sh
-bun link                       # inside the repo (registers the package)
-bun link claude-codex-proxy    # anywhere (creates the symlink)
-```
-
-Make sure `$(bun pm bin -g)` is in your `PATH`. Unlink with
-`bun unlink claude-codex-proxy`. Alternatively, compile a one-off
-binary:
-
-```sh
-bun build ./src/cli.ts --compile --outfile ~/.local/bin/claude-codex-proxy
-```
-
 ### 2. Authenticate with ChatGPT
 
 Open a browser (PKCE flow):
@@ -79,8 +63,8 @@ claude-codex-proxy auth device
 ```
 
 Either command prints a URL. Sign in with your **ChatGPT Plus/Pro account**. The
-access and refresh tokens are stored at
-`~/.config/claude-codex-proxy/auth.json` with 0600 permissions.
+access and refresh tokens are stored in the system credential store (macOS
+Keychain or Linux Secret Service).
 
 Verify it stuck:
 
@@ -286,18 +270,18 @@ The proxy speaks enough of the Anthropic API for Claude Code:
 
 Settings are environment variables on the proxy process, not a config file.
 
-| Variable           | Default          | Purpose                                             |
-| ------------------ | ---------------- | --------------------------------------------------- |
-| `PORT`             | `18765`          | Proxy listen port                                   |
-| `XDG_STATE_HOME`   | `~/.local/state` | Base dir for `proxy.log`                            |
-| `CCP_LOG_STDERR`   | unset            | Also mirror log lines to stderr                     |
-| `CCP_LOG_VERBOSE`  | unset            | Log full request/response bodies + every SSE event  |
+| Variable          | Default          | Purpose                                            |
+| ----------------- | ---------------- | -------------------------------------------------- |
+| `PORT`            | `18765`          | Proxy listen port                                  |
+| `XDG_STATE_HOME`  | `~/.local/state` | Base dir for `proxy.log`                           |
+| `CCP_LOG_STDERR`  | unset            | Also mirror log lines to stderr                    |
+| `CCP_LOG_VERBOSE` | unset            | Log full request/response bodies + every SSE event |
 
 ### Files
 
 - `~/.config/claude-codex-proxy/auth.json` — OAuth tokens, 0600
-- `$XDG_STATE_HOME/claude-codex-proxy/proxy.log` — JSON-lines log, rotated at
-  20 MiB. Secrets (`authorization`, `access`, `refresh`, `id_token`,
+- `$XDG_STATE_HOME/claude-codex-proxy/proxy.log` — JSON-lines log, rotated at 20
+  MiB. Secrets (`authorization`, `access`, `refresh`, `id_token`,
   `ChatGPT-Account-Id`, …) are redacted before write.
 
 ### Multiple Claude Codes, one proxy
@@ -335,19 +319,13 @@ bun src/cli.ts serve  # run locally
 tail -f ~/.local/state/claude-codex-proxy/proxy.log | jq .
 ```
 
-The core logic lives in:
+**Install a compiled dev build globally** — compile the current working tree to
+a binary and place it on your `PATH` without linking:
 
-- `src/translate/request.ts` — Anthropic → Responses API request
-- `src/translate/reducer.ts` — Responses SSE state machine (typed events)
-- `src/translate/stream.ts` — ReducerEvent → Anthropic SSE
-- `src/translate/accumulate.ts` — ReducerEvent → Anthropic JSON (non-streaming)
-- `src/codex/client.ts` — bearer + account-id headers, 401 refresh-retry
-- `src/auth/manager.ts` — refresh-ahead with single-flight guard
-
-## Credits
-
-The OAuth flow, client ID, endpoint URL, and JWT claim extraction are ported
-from [opencode](https://github.com/sst/opencode)'s `codex.ts` plugin.
+```sh
+mkdir -p ~/.local/bin
+bun build ./src/cli.ts --compile --outfile ~/.local/bin/claude-codex-proxy
+```
 
 ## Related projects
 
