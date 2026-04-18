@@ -18,6 +18,7 @@ export function startServer(opts: ServeOptions): { stop: () => void; port: numbe
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: opts.port,
+    idleTimeout: 255,
     async fetch(req) {
       const url = new URL(req.url)
       const start = Date.now()
