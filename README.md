@@ -283,14 +283,6 @@ Settings are environment variables on the proxy process, not a config file.
   MiB. Secrets (`authorization`, `access`, `refresh`, `id_token`,
   `ChatGPT-Account-Id`, …) are redacted before write.
 
-### Multiple Claude Codes, one proxy
-
-Several Claude Code instances can share a single proxy. Each request carries its
-own `x-claude-code-session-id`, which becomes the upstream `prompt_cache_key`,
-so sessions don't poison each other's cache. All sessions draw from the same
-ChatGPT rate-limit budget, so be aware that one chatty session affects the
-others.
-
 ## Limitations
 
 - **Terms of service:** using the Codex backend from a non-official client is
@@ -328,9 +320,9 @@ bun build ./src/cli.ts --compile --outfile ~/.local/bin/claude-codex-proxy
 
 ## Related projects
 
-- [opencode](https://github.com/sst/opencode) — the AI coding agent that proved
-  the Codex-via-subscription pattern works in TypeScript
 - [claude-history](https://github.com/raine/claude-history) — search Claude Code
   conversation history from the terminal
 - [git-surgeon](https://github.com/raine/git-surgeon) — non-interactive
   hunk-level git staging for AI agents
+- [workmux](https://github.com/raine/workmux) — manage parallel AI coding tasks in
+  separate git worktrees with tmux
