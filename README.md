@@ -146,8 +146,12 @@ Key decisions:
   auto-cache most of it (typically 70%+ hit rate on follow-up turns).
 - **Tool IDs:** identity mapping. Anthropic `tool_use.id` = OpenAI `call_id`
   verbatim.
-- **Reasoning:** dropped. Responses-style reasoning summaries can't be faked as
-  Anthropic `thinking` blocks with valid signatures, so they're omitted.
+- **Reasoning:** dropped from the response. Responses-style reasoning summaries
+  can't be faked as Anthropic `thinking` blocks with valid signatures, so
+  they're omitted. The **effort level is forwarded**, though: Claude Code's
+  `output_config.effort` (`low | medium | high`, set via `/effort` in the TUI)
+  is mapped 1:1 to Responses `reasoning.effort`. OpenAI's `"minimal"` value
+  isn't reachable because Claude Code doesn't expose it.
 - **System prompt:** Anthropic `system` blocks are concatenated into the
   Responses API top-level `instructions` field. The rotating
   `x-anthropic-billing-header:` block Claude Code injects is stripped so it
