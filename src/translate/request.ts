@@ -1,0 +1,186 @@
+import type {
+  AnthropicContentBlock,
+  AnthropicMessage,
+  AnthropicRequest,
+  AnthropicTextBlock,
+  AnthropicTool,
+} from "../anthropic/schema.ts"
+
+export interface ResponsesRequest {
+  model: string
+  instructions?: string
+  input: ResponsesInputItem[]
+  tools?: ResponsesTool[]
+  tool_choice?: "auto" | "none" | "required"
+  parallel_tool_calls?: boolean
+  store: false
+  stream: true
+  include?: string[]
+  prompt_cache_key?: string
+  reasoning?: { effort?: "low" | "medium" | "high" }
+  text?: { verbosity?: "low" | "medium" | "high" }
+}
+
+export type ResponsesInputItem =
+  | {
+      type: "message"
+      role: "user" | "assistant" | "developer" | "system"
+      content: ResponsesContentPart[]
+    }
+  | {
+      type: "function_call"
+      call_id: string
+      name: string
+      arguments: string
+    }
+  | {
+      type: "function_call_output"
+      call_id: string
+      output: string
+    }
+
+export type ResponsesContentPart =
+  | { type: "input_text"; text: string }
+  | { type: "output_text"; text: string }
+  | { type: "input_image"; image_url: string }
+
+export interface ResponsesTool {
+  type: "function"
+  name: string
+  description?: string
+  parameters: unknown
+  strict?: boolean
+}
+
+export interface TranslateOptions {
+  sessionId?: string
+}
+
+export function isTitleGenRequest(req: AnthropicRequest): boolean {
+  return req.output_config?.format?.type === "json_schema"
+}
+
+export function translateRequest(req: AnthropicRequest, opts: TranslateOptions = {}): ResponsesRequest {
+  const instructions = buildInstructions(req.system)
+  const input = buildInput(req.messages)
+  const tools = req.tools?.map(toResponsesTool)
+
+  const out: ResponsesRequest = {
+    model: req.model,
+    input,
+    store: false,
+    stream: true,
+    include: ["reasoning.encrypted_content"],
+    parallel_tool_calls: true,
+    tool_choice: mapToolChoice(req.tool_choice),
+    text: { verbosity: "low" },
+  }
+  if (instructions) out.instructions = instructions
+  if (tools && tools.length) out.tools = tools
+  if (opts.sessionId) out.prompt_cache_key = opts.sessionId
+  const effort = req.output_config?.effort
+  if (effort) out.reasoning = { effort }
+  return out
+}
+
+function mapToolChoice(
+  choice: AnthropicRequest["tool_choice"],
+): "auto" | "none" | "required" | undefined {
+  if (!choice) return "auto"
+  switch (choice.type) {
+    case "auto":
+      return "auto"
+    case "none":
+      return "none"
+    case "any":
+    case "tool":
+      return "required"
+  }
+}
+
+function buildInstructions(system: AnthropicRequest["system"]): string | undefined {
+  if (!system) return undefined
+  const blocks: AnthropicTextBlock[] =
+    typeof system === "string" ? [{ type: "text", text: system }] : system
+  const texts = blocks
+    .filter((b) => b && b.type === "text" && typeof b.text === "string")
+    .map((b) => b.text)
+    .filter((t) => !t.startsWith("x-anthropic-billing-header:"))
+  if (!texts.length) return undefined
+  return texts.join("\n\n")
+}
+
+function buildInput(messages: AnthropicMessage[]): ResponsesInputItem[] {
+  const out: ResponsesInputItem[] = []
+  for (const msg of messages) {
+    const blocks = normalizeContent(msg.content)
+    if (msg.role === "user") {
+      // Split into message parts vs function_call_output items
+      const parts: ResponsesContentPart[] = []
+      for (const block of blocks) {
+        if (block.type === "text") {
+          parts.push({ type: "input_text", text: block.text })
+        } else if (block.type === "image") {
+          parts.push({ type: "input_image", image_url: imageToUrl(block) })
+        } else if (block.type === "tool_result") {
+          if (parts.length) {
+            out.push({ type: "message", role: "user", content: parts.splice(0) })
+          }
+          out.push({
+            type: "function_call_output",
+            call_id: block.tool_use_id,
+            output: toolResultToString(block.content),
+          })
+        }
+      }
+      if (parts.length) out.push({ type: "message", role: "user", content: parts })
+    } else {
+      // assistant
+      const textParts: ResponsesContentPart[] = []
+      const toolCalls: ResponsesInputItem[] = []
+      for (const block of blocks) {
+        if (block.type === "text") {
+          textParts.push({ type: "output_text", text: block.text })
+        } else if (block.type === "tool_use") {
+          toolCalls.push({
+            type: "function_call",
+            call_id: block.id,
+            name: block.name,
+            arguments: JSON.stringify(block.input ?? {}),
+          })
+        }
+      }
+      if (textParts.length) {
+        out.push({ type: "message", role: "assistant", content: textParts })
+      }
+      for (const tc of toolCalls) out.push(tc)
+    }
+  }
+  return out
+}
+
+function normalizeContent(content: AnthropicMessage["content"]): AnthropicContentBlock[] {
+  if (typeof content === "string") return [{ type: "text", text: content }]
+  return content
+}
+
+function imageToUrl(block: Extract<AnthropicContentBlock, { type: "image" }>): string {
+  if (block.source.type === "url") return block.source.url
+  return `data:${block.source.media_type};base64,${block.source.data}`
+}
+
+function toolResultToString(content: string | Array<AnthropicTextBlock | { type: "image" }>): string {
+  if (typeof content === "string") return content
+  return content
+    .map((b) => (b.type === "text" ? b.text : "[image]"))
+    .join("\n")
+}
+
+function toResponsesTool(tool: AnthropicTool): ResponsesTool {
+  return {
+    type: "function",
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.input_schema,
+  }
+}
