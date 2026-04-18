@@ -18,7 +18,13 @@ export interface ResponsesRequest {
   include?: string[]
   prompt_cache_key?: string
   reasoning?: { effort?: "low" | "medium" | "high" }
-  text?: { verbosity?: "low" | "medium" | "high" }
+  text?: {
+    verbosity?: "low" | "medium" | "high"
+    format?:
+      | { type: "text" }
+      | { type: "json_object" }
+      | { type: "json_schema"; name: string; schema: unknown; strict?: boolean }
+  }
 }
 
 export type ResponsesInputItem =
@@ -56,14 +62,21 @@ export interface TranslateOptions {
   sessionId?: string
 }
 
-export function isTitleGenRequest(req: AnthropicRequest): boolean {
-  return req.output_config?.format?.type === "json_schema"
-}
-
 export function translateRequest(req: AnthropicRequest, opts: TranslateOptions = {}): ResponsesRequest {
   const instructions = buildInstructions(req.system)
   const input = buildInput(req.messages)
   const tools = req.tools?.map(toResponsesTool)
+
+  const text: ResponsesRequest["text"] = { verbosity: "low" }
+  const fmt = req.output_config?.format
+  if (fmt?.type === "json_schema") {
+    text.format = {
+      type: "json_schema",
+      name: fmt.name ?? "response",
+      schema: fmt.schema,
+      strict: true,
+    }
+  }
 
   const out: ResponsesRequest = {
     model: req.model,
@@ -73,7 +86,7 @@ export function translateRequest(req: AnthropicRequest, opts: TranslateOptions =
     include: ["reasoning.encrypted_content"],
     parallel_tool_calls: true,
     tool_choice: mapToolChoice(req.tool_choice),
-    text: { verbosity: "low" },
+    text,
   }
   if (instructions) out.instructions = instructions
   if (tools && tools.length) out.tools = tools

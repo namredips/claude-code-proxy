@@ -55,7 +55,7 @@ export interface AnthropicRequest {
   thinking?: { type: string; [k: string]: unknown }
   output_config?: {
     effort?: "low" | "medium" | "high"
-    format?: { type: "json_schema"; schema: unknown; name?: string }
+    format?: { type: "json_schema"; schema: unknown; name?: string; strict?: boolean }
   }
   context_management?: unknown
   metadata?: unknown

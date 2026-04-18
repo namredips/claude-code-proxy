@@ -1,10 +1,9 @@
 import { createLogger, logDir } from "./log.ts"
 import type { AnthropicRequest } from "./anthropic/schema.ts"
 import { assertAllowedModel, ModelNotAllowedError } from "./translate/model-allowlist.ts"
-import { isTitleGenRequest, translateRequest } from "./translate/request.ts"
+import { translateRequest } from "./translate/request.ts"
 import { translateStream } from "./translate/stream.ts"
 import { accumulateResponse } from "./translate/accumulate.ts"
-import { encodeSseEvent } from "./translate/sse.ts"
 import { CodexError, postCodex } from "./codex/client.ts"
 import { countTokens } from "./count-tokens.ts"
 
@@ -82,13 +81,8 @@ async function handleMessages(req: Request, reqId: string): Promise<Response> {
     toolCount: body.tools?.length ?? 0,
     stream: wantStream,
     sessionId,
-    hasTitleGenFormat: isTitleGenRequest(body),
+    hasJsonSchemaFormat: body.output_config?.format?.type === "json_schema",
   })
-
-  // Title-generation stub: Claude Code fires this in parallel for session titles.
-  if (isTitleGenRequest(body)) {
-    return titleGenStub({ messageId, model: body.model, wantStream })
-  }
 
   try {
     assertAllowedModel(body.model)
@@ -151,90 +145,6 @@ async function handleMessages(req: Request, reqId: string): Promise<Response> {
   const result = await accumulateResponse(upstream.body, { messageId, model: body.model })
   return new Response(JSON.stringify(result), {
     headers: { "content-type": "application/json" },
-  })
-}
-
-function titleGenStub(opts: {
-  messageId: string
-  model: string
-  wantStream: boolean
-}): Response {
-  const content = [{ type: "text" as const, text: JSON.stringify({ title: "Session" }) }]
-  if (!opts.wantStream) {
-    return new Response(
-      JSON.stringify({
-        id: opts.messageId,
-        type: "message",
-        role: "assistant",
-        model: opts.model,
-        content,
-        stop_reason: "end_turn",
-        stop_sequence: null,
-        usage: {
-          input_tokens: 0,
-          output_tokens: 0,
-          cache_creation_input_tokens: 0,
-          cache_read_input_tokens: 0,
-        },
-      }),
-      { headers: { "content-type": "application/json" } },
-    )
-  }
-  const enc = new TextEncoder()
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const emit = (event: string, data: unknown) =>
-        controller.enqueue(enc.encode(encodeSseEvent(event, data)))
-      emit("message_start", {
-        type: "message_start",
-        message: {
-          id: opts.messageId,
-          type: "message",
-          role: "assistant",
-          model: opts.model,
-          content: [],
-          stop_reason: null,
-          stop_sequence: null,
-          usage: {
-            input_tokens: 0,
-            output_tokens: 0,
-            cache_creation_input_tokens: 0,
-            cache_read_input_tokens: 0,
-          },
-        },
-      })
-      emit("ping", { type: "ping" })
-      emit("content_block_start", {
-        type: "content_block_start",
-        index: 0,
-        content_block: { type: "text", text: "" },
-      })
-      emit("content_block_delta", {
-        type: "content_block_delta",
-        index: 0,
-        delta: { type: "text_delta", text: content[0]!.text },
-      })
-      emit("content_block_stop", { type: "content_block_stop", index: 0 })
-      emit("message_delta", {
-        type: "message_delta",
-        delta: { stop_reason: "end_turn", stop_sequence: null },
-        usage: {
-          input_tokens: 0,
-          output_tokens: 0,
-          cache_creation_input_tokens: 0,
-          cache_read_input_tokens: 0,
-        },
-      })
-      emit("message_stop", { type: "message_stop" })
-      controller.close()
-    },
-  })
-  return new Response(stream, {
-    headers: {
-      "content-type": "text/event-stream",
-      "cache-control": "no-cache",
-      connection: "keep-alive",
-    },
   })
 }
 
