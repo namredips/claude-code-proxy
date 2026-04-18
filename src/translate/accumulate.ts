@@ -1,15 +1,6 @@
-import { parseSseStream } from "./sse.ts"
+import { mapUsageToAnthropic, reduceUpstream } from "./reducer.ts"
 
-export class UpstreamStreamError extends Error {
-  constructor(
-    public kind: "rate_limit" | "failed",
-    message: string,
-    public retryAfterSeconds?: number,
-  ) {
-    super(message)
-    this.name = "UpstreamStreamError"
-  }
-}
+export { UpstreamStreamError } from "./reducer.ts"
 
 export interface AnthropicNonStreamResponse {
   id: string
@@ -31,101 +22,56 @@ export interface AnthropicNonStreamResponse {
 }
 
 /**
- * Drive the Codex SSE stream to completion and produce a single Anthropic
- * non-streaming response object. Used when the client asked for stream:false.
+ * Drive the Codex SSE stream to completion through the shared reducer
+ * and fold the ReducerEvents into a single Anthropic non-streaming
+ * response object. Throws UpstreamStreamError on rate_limit or failed
+ * upstream; server translates to a proper HTTP status.
  */
 export async function accumulateResponse(
   upstream: ReadableStream<Uint8Array>,
   opts: { messageId: string; model: string },
 ): Promise<AnthropicNonStreamResponse> {
-  const blocks = new Map<
-    number,
+  type Block =
     | { kind: "text"; text: string }
     | { kind: "tool"; id: string; name: string; args: string }
-  >()
-  const itemToOutputIndex = new Map<string, number>()
-  let sawToolUse = false
-  let incomplete = false
-  let usage: any
-  const orderedIndices: number[] = []
 
-  const ensureOrder = (i: number) => {
-    if (!orderedIndices.includes(i)) orderedIndices.push(i)
-  }
+  const ordered: number[] = []
+  const blocks = new Map<number, Block>()
+  let stopReason: AnthropicNonStreamResponse["stop_reason"] = null
+  let usage: ReturnType<typeof mapUsageToAnthropic> | undefined
 
-  for await (const evt of parseSseStream(upstream)) {
-    if (!evt.data) continue
-    let p: any
-    try {
-      p = JSON.parse(evt.data)
-    } catch {
-      continue
-    }
-    const t = p.type || evt.event || ""
-    if (t === "codex.rate_limits") {
-      if (p.rate_limits?.limit_reached) {
-        throw new UpstreamStreamError(
-          "rate_limit",
-          "rate limit reached",
-          p.rate_limits?.primary?.reset_after_seconds,
-        )
+  for await (const e of reduceUpstream(upstream)) {
+    switch (e.kind) {
+      case "text-start":
+        blocks.set(e.index, { kind: "text", text: "" })
+        ordered.push(e.index)
+        break
+      case "text-delta": {
+        const b = blocks.get(e.index)
+        if (b?.kind === "text") b.text += e.text
+        break
       }
-      continue
-    }
-    if (t === "response.failed" || t === "response.error" || t === "error") {
-      const message = p?.response?.error?.message || p?.error?.message || "Upstream error"
-      throw new UpstreamStreamError("failed", message)
-    }
-    if (t === "response.output_item.added") {
-      const item = p.item
-      const oi = p.output_index
-      if (!item) continue
-      if (item.type === "message") {
-        blocks.set(oi, { kind: "text", text: "" })
-        ensureOrder(oi)
-        if (item.id) itemToOutputIndex.set(item.id, oi)
-      } else if (item.type === "function_call") {
-        sawToolUse = true
-        blocks.set(oi, { kind: "tool", id: item.call_id, name: item.name, args: "" })
-        ensureOrder(oi)
+      case "tool-start":
+        blocks.set(e.index, { kind: "tool", id: e.id, name: e.name, args: "" })
+        ordered.push(e.index)
+        break
+      case "tool-delta": {
+        const b = blocks.get(e.index)
+        if (b?.kind === "tool") b.args += e.partialJson
+        break
       }
-      continue
-    }
-    if (t === "response.output_text.delta") {
-      let oi = p.output_index
-      if (typeof oi !== "number" && p.item_id) oi = itemToOutputIndex.get(p.item_id)
-      const b = typeof oi === "number" ? blocks.get(oi) : undefined
-      if (b && b.kind === "text") b.text += p.delta ?? ""
-      continue
-    }
-    if (t === "response.function_call_arguments.delta") {
-      const b = blocks.get(p.output_index)
-      if (b && b.kind === "tool") b.args += p.delta ?? ""
-      continue
-    }
-    if (t === "response.function_call_arguments.done") {
-      const b = blocks.get(p.output_index)
-      if (b && b.kind === "tool" && !b.args && typeof p.arguments === "string") b.args = p.arguments
-      continue
-    }
-    if (t === "response.output_item.done") {
-      const item = p.item
-      const b = blocks.get(p.output_index)
-      if (b && b.kind === "tool" && !b.args && typeof item?.arguments === "string") b.args = item.arguments
-      continue
-    }
-    if (t === "response.completed" || t === "response.incomplete") {
-      usage = p.response?.usage
-      const reason = p.response?.incomplete_details?.reason
-      if (t === "response.incomplete" || reason === "max_output_tokens" || p.response?.status === "incomplete") {
-        incomplete = true
-      }
-      continue
+      case "text-stop":
+      case "tool-stop":
+        break
+      case "finish":
+        stopReason = e.stopReason
+        usage = mapUsageToAnthropic(e.usage)
+        break
     }
   }
 
   const content: AnthropicNonStreamResponse["content"] = []
-  for (const i of orderedIndices) {
+  for (const i of ordered) {
     const b = blocks.get(i)
     if (!b) continue
     if (b.kind === "text") {
@@ -147,13 +93,13 @@ export async function accumulateResponse(
     role: "assistant",
     model: opts.model,
     content,
-    stop_reason: incomplete ? "max_tokens" : sawToolUse ? "tool_use" : "end_turn",
+    stop_reason: stopReason,
     stop_sequence: null,
-    usage: {
-      input_tokens: usage?.input_tokens ?? 0,
-      output_tokens: usage?.output_tokens ?? 0,
+    usage: usage ?? {
+      input_tokens: 0,
+      output_tokens: 0,
       cache_creation_input_tokens: 0,
-      cache_read_input_tokens: usage?.input_tokens_details?.cached_tokens ?? 0,
+      cache_read_input_tokens: 0,
     },
   }
 }
