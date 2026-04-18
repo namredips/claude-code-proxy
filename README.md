@@ -93,6 +93,21 @@ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
   claude
 ```
 
+Or set it persistently in `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:18765",
+    "ANTHROPIC_AUTH_TOKEN": "unused",
+    "ANTHROPIC_MODEL": "gpt-5.4",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
+  }
+}
+```
+
+
+
 ## Supported models
 
 Set `ANTHROPIC_MODEL` to a model your ChatGPT subscription is allowed to use.
