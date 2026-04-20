@@ -52,7 +52,7 @@ function upstreamHeaderSnapshot(headers: Headers): {
 } {
   return {
     serverModel: headers.get("OpenAI-Model") || undefined,
-    serverReasoningIncluded: headers.get("X-Reasoning-Included") === "true",
+    serverReasoningIncluded: headers.has("X-Reasoning-Included"),
   }
 }
 
