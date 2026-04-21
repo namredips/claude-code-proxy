@@ -8,6 +8,7 @@ import {
 import { translateRequest } from "./translate/request.ts"
 import { translateStream } from "./translate/stream.ts"
 import { accumulateResponse, UpstreamStreamError } from "./translate/accumulate.ts"
+import { mapUsageToAnthropic } from "./translate/reducer.ts"
 import { countTokens, countTranslatedTokens } from "./count-tokens.ts"
 import { KimiError, postKimi } from "./client.ts"
 import { runDeviceLogin } from "./auth/login.ts"
@@ -68,8 +69,8 @@ async function handleMessages(body: AnthropicRequest, ctx: RequestContext): Prom
     { ...body, model: resolvedModel },
     { sessionId: ctx.sessionId },
   )
-  const localInputTokens = VERBOSE ? countTokens(body) : undefined
-  const translatedInputTokens = VERBOSE ? countTranslatedTokens(translated) : undefined
+  const localInputTokens = countTokens(body)
+  const translatedInputTokens = countTranslatedTokens(translated)
   log.debug("translated request", {
     requestedModel: body.model,
     resolvedModel,
@@ -113,6 +114,23 @@ async function handleMessages(body: AnthropicRequest, ctx: RequestContext): Prom
       messageId,
       model: body.model,
       log: ctx.childLogger("kimi.stream"),
+      onFinish: (finish) => {
+        const mappedUsage = finish.usage ? mapUsageToAnthropic(finish.usage) : undefined
+        log.debug("stream finish", {
+          stopReason: finish.stopReason,
+          upstreamInputTokens: finish.usage?.prompt_tokens ?? 0,
+          upstreamOutputTokens: finish.usage?.completion_tokens ?? 0,
+          upstreamCachedInputTokens:
+            finish.usage?.prompt_tokens_details?.cached_tokens ??
+            finish.usage?.cached_tokens ??
+            0,
+          upstreamReasoningTokens:
+            finish.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
+          mappedInputTokens: mappedUsage?.input_tokens ?? 0,
+          mappedOutputTokens: mappedUsage?.output_tokens ?? 0,
+          mappedCacheReadTokens: mappedUsage?.cache_read_input_tokens ?? 0,
+        })
+      },
     })
     return new Response(stream, {
       status: 200,
