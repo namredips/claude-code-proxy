@@ -5,6 +5,7 @@ import { forceRefresh, getAuth } from "./auth/manager.ts"
 import type { Logger } from "../../log.ts"
 import type { RequestContext } from "../types.ts"
 import type { ResponsesRequest } from "./translate/request.ts"
+import { retryOn429 } from "../retry.ts"
 
 export interface CodexResponse {
   body: ReadableStream<Uint8Array>
@@ -17,6 +18,21 @@ export async function postCodex(
   ctx: RequestContext,
 ): Promise<CodexResponse> {
   const log = ctx.childLogger("codex.client")
+  return retryOn429(() => attemptPostCodex(body, ctx, log), {
+    log,
+    signal: ctx.signal,
+    classify: (err) =>
+      err instanceof CodexError && err.status === 429
+        ? { retryAfter: err.meta?.retryAfter }
+        : undefined,
+  })
+}
+
+async function attemptPostCodex(
+  body: ResponsesRequest,
+  ctx: RequestContext,
+  log: Logger,
+): Promise<CodexResponse> {
   let auth = await getAuth()
   let resp = await doFetch(auth.access, auth.accountId, body, log, ctx.signal, ctx.sessionId)
 

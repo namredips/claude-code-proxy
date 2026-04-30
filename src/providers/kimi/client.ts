@@ -4,6 +4,7 @@ import { forceRefresh, getAuth, KimiAuthUnauthorizedError } from "./auth/manager
 import type { Logger } from "../../log.ts"
 import type { RequestContext } from "../types.ts"
 import type { KimiChatRequest } from "./translate/request.ts"
+import { retryOn429 } from "../retry.ts"
 
 export interface KimiResponse {
   body: ReadableStream<Uint8Array>
@@ -29,6 +30,21 @@ export async function postKimi(
   ctx: RequestContext,
 ): Promise<KimiResponse> {
   const log = ctx.childLogger("kimi.client")
+  return retryOn429(() => attemptPostKimi(body, ctx, log), {
+    log,
+    signal: ctx.signal,
+    classify: (err) =>
+      err instanceof KimiError && err.status === 429
+        ? { retryAfter: err.meta?.retryAfter }
+        : undefined,
+  })
+}
+
+async function attemptPostKimi(
+  body: KimiChatRequest,
+  ctx: RequestContext,
+  log: Logger,
+): Promise<KimiResponse> {
   let auth = await getAuth()
   const requestStartTime = Date.now()
   let resp = await doFetch(auth.access, body, log, ctx.signal)
