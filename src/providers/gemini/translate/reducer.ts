@@ -53,6 +53,54 @@ type GeminiResponsePart =
   | { text?: string; thought?: boolean }
   | { functionCall?: { id?: string; name?: string; args?: unknown } }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function invalidAskUserQuestionFallback(name: string, args: unknown): string | undefined {
+  if (name !== "AskUserQuestion") return undefined
+
+  if (!isRecord(args)) return "What would you like to do next?"
+  const questions = args.questions
+  if (!Array.isArray(questions) || questions.length === 0 || questions.length > 3) {
+    return "What would you like to do next?"
+  }
+
+  let firstQuestionText: string | undefined
+  let hasInvalidShape = false
+
+  for (const question of questions) {
+    if (!isRecord(question)) {
+      hasInvalidShape = true
+      continue
+    }
+
+    if (firstQuestionText === undefined && typeof question.question === "string") {
+      firstQuestionText = question.question.trim()
+    }
+
+    const options = question.options
+    if (
+      typeof question.header !== "string" ||
+      typeof question.question !== "string" ||
+      !Array.isArray(options) ||
+      options.length < 2 ||
+      options.length > 3 ||
+      options.some(
+        (option) =>
+          !isRecord(option) ||
+          typeof option.label !== "string" ||
+          typeof option.description !== "string",
+      )
+    ) {
+      hasInvalidShape = true
+    }
+  }
+
+  if (!hasInvalidShape) return undefined
+  return firstQuestionText || "What would you like to do next?"
+}
+
 export interface ReducerStats {
   chunkCount: number
 }
@@ -129,6 +177,16 @@ export async function* reduceUpstream(
         yield* closeThinking()
         yield* closeText()
         const name = part.functionCall.name ?? "tool"
+        const fallbackText = invalidAskUserQuestionFallback(name, part.functionCall.args)
+        if (fallbackText) {
+          log?.warn("gemini upstream: dropping invalid AskUserQuestion tool call")
+          const index = nextBlockIndex++
+          yield { kind: "text-start", index }
+          yield { kind: "text-delta", index, text: fallbackText }
+          yield { kind: "text-stop", index }
+          continue
+        }
+
         const id = part.functionCall.id ?? `call_${crypto.randomUUID().replace(/-/g, "")}`
         const args = JSON.stringify(part.functionCall.args ?? {})
         const index = nextBlockIndex++
@@ -146,7 +204,7 @@ export async function* reduceUpstream(
   const stopReason: StopReason =
     finishReason === "MAX_TOKENS"
       ? "max_tokens"
-      : sawToolCalls || finishReason === "MALFORMED_FUNCTION_CALL"
+      : sawToolCalls
         ? "tool_use"
         : "end_turn"
 
