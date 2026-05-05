@@ -178,6 +178,7 @@ async function handleMessages(body: AnthropicRequest, ctx: RequestContext): Prom
     requestedMaxTokens: body.max_tokens,
     hasContextManagement: contextManagement !== undefined,
     promptCacheKey: translated.prompt_cache_key,
+    reasoningEffort: translated.reasoning?.effort ?? null,
   })
   if (logVerbose()) log.debug("translated request body", { body: translated })
   if (logVerbose()) {

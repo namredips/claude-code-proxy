@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import type { AnthropicRequest } from "../../../anthropic/schema.ts"
+import { loadConfig } from "../../../config.ts"
 import { translateRequest } from "./request.ts"
 
 const baseRequest: AnthropicRequest = {
@@ -23,6 +24,28 @@ describe("translateRequest", () => {
 
     expect(translated.reasoning).toEqual({ effort: "medium" })
     expect(translated.include).toEqual(["reasoning.encrypted_content"])
+  })
+
+  it("maps Claude max effort to Codex xhigh reasoning effort", () => {
+    const translated = translateRequest({
+      ...baseRequest,
+      output_config: { effort: "max" },
+    })
+
+    expect(translated.reasoning).toEqual({ effort: "xhigh" })
+    expect(translated.include).toEqual(["reasoning.encrypted_content"])
+  })
+
+  it("maps max effort override to Codex xhigh reasoning effort", () => {
+    loadConfig({ env: { CCP_CODEX_EFFORT: "max" }, forceReload: true })
+    try {
+      const translated = translateRequest(baseRequest)
+
+      expect(translated.reasoning).toEqual({ effort: "xhigh" })
+      expect(translated.include).toEqual(["reasoning.encrypted_content"])
+    } finally {
+      loadConfig({ env: {}, forceReload: true })
+    }
   })
 
   it("returns only the expected top-level upstream request fields", () => {

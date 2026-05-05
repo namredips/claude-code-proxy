@@ -9,6 +9,7 @@ import type {
 import { codexEffort } from "../../../config.ts"
 
 export type Effort = "none" | "low" | "medium" | "high" | "xhigh"
+type EffortOverride = Effort | "max"
 
 // Keep this aligned to the upstream Codex ResponsesApiRequest field set.
 // Do not add plausible-looking top-level fields without source support or a confirmed live test.
@@ -74,7 +75,7 @@ export interface TranslateOptions {
   sessionId?: string
 }
 
-const VALID_EFFORTS = new Set<Effort>(["none", "low", "medium", "high", "xhigh"])
+const VALID_EFFORTS = new Set<EffortOverride>(["none", "low", "medium", "high", "xhigh", "max"])
 
 const ANTHROPIC_EFFORTS = new Set(["low", "medium", "high", "max"])
 
@@ -93,17 +94,21 @@ function toCodexEffort(
   return effort
 }
 
+function normalizeCodexEffort(effort: EffortOverride): Effort {
+  return effort === "max" ? "xhigh" : effort
+}
+
 function resolveEffort(effort?: Effort): Effort | undefined {
   const override = codexEffort()
   if (override === undefined) {
     return effort
   }
-  if (!VALID_EFFORTS.has(override as Effort)) {
+  if (!VALID_EFFORTS.has(override as EffortOverride)) {
     throw new Error(
       `Invalid effort override: "${override}". Must be one of: ${Array.from(VALID_EFFORTS).join(", ")}`,
     )
   }
-  return override as Effort
+  return normalizeCodexEffort(override as EffortOverride)
 }
 
 export function translateRequest(req: AnthropicRequest, opts: TranslateOptions = {}): ResponsesRequest {

@@ -489,7 +489,7 @@ directory the auth tokens use, deliberately not `~/Library`) and at
 | `CCP_KIMI_OAUTH_HOST`      | `kimi.oauthHost`    | `https://auth.kimi.com`          | Override Kimi's OAuth host (debugging only)                                                    |
 | `CCP_KIMI_BASE_URL`        | `kimi.baseUrl`      | `https://api.kimi.com/coding/v1` | Override Kimi's API base URL                                                                   |
 | `CCP_CODEX_MODEL`      | `codex.model`       | unset                            | Force all Codex requests to this model (`gpt-5.2`, `gpt-5.3-codex`, `gpt-5.4`, `gpt-5.4-mini`) |
-| `CCP_CODEX_EFFORT`     | `codex.effort`      | unset                            | Force all Codex requests to this reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`)   |
+| `CCP_CODEX_EFFORT`     | `codex.effort`      | unset                            | Force all Codex requests to this reasoning effort (`none`, `low`, `medium`, `high`, `xhigh`; `max` aliases to `xhigh`) |
 | `CCP_CODEX_ORIGINATOR` | `codex.originator`  | `claude-code-proxy`              | Override the `originator` header sent to Codex                                                 |
 | `CCP_CODEX_USER_AGENT` | `codex.userAgent`   | `claude-code-proxy/<version>`    | Override the `User-Agent` header sent to Codex                                                 |
 | `CCP_KIMI_USER_AGENT`  | `kimi.userAgent`    | `KimiCLI/1.37.0`                 | Override the `User-Agent` header sent to Kimi                                                  |
