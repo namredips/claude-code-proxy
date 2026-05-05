@@ -6,7 +6,7 @@ import type {
   AnthropicTextBlock,
   AnthropicTool,
 } from "../../../anthropic/schema.ts"
-import { codexEffort } from "../../../config.ts"
+import { codexDefaultEffort, codexEffort } from "../../../config.ts"
 
 export type Effort = "none" | "low" | "medium" | "high" | "xhigh"
 type EffortOverride = Effort | "max"
@@ -98,17 +98,27 @@ function normalizeCodexEffort(effort: EffortOverride): Effort {
   return effort === "max" ? "xhigh" : effort
 }
 
-function resolveEffort(effort?: Effort): Effort | undefined {
-  const override = codexEffort()
-  if (override === undefined) {
-    return effort
-  }
-  if (!VALID_EFFORTS.has(override as EffortOverride)) {
+function validateEffortOverride(name: string, effort: string): EffortOverride {
+  if (!VALID_EFFORTS.has(effort as EffortOverride)) {
     throw new Error(
-      `Invalid effort override: "${override}". Must be one of: ${Array.from(VALID_EFFORTS).join(", ")}`,
+      `Invalid ${name}: "${effort}". Must be one of: ${Array.from(VALID_EFFORTS).join(", ")}`,
     )
   }
-  return normalizeCodexEffort(override as EffortOverride)
+  return effort as EffortOverride
+}
+
+function resolveEffort(effort?: Effort): Effort | undefined {
+  const override = codexEffort()
+  if (override !== undefined) {
+    return normalizeCodexEffort(validateEffortOverride("effort override", override))
+  }
+
+  const defaultEffort = codexDefaultEffort()
+  if (effort === undefined && defaultEffort !== undefined) {
+    return normalizeCodexEffort(validateEffortOverride("default effort", defaultEffort))
+  }
+
+  return effort
 }
 
 export function translateRequest(req: AnthropicRequest, opts: TranslateOptions = {}): ResponsesRequest {

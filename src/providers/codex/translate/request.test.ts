@@ -48,6 +48,32 @@ describe("translateRequest", () => {
     }
   })
 
+  it("uses the default effort only when Claude Code does not send effort", () => {
+    loadConfig({ env: { CCP_CODEX_DEFAULT_EFFORT: "high" }, forceReload: true })
+    try {
+      const translated = translateRequest(baseRequest)
+
+      expect(translated.reasoning).toEqual({ effort: "high" })
+      expect(translated.include).toEqual(["reasoning.encrypted_content"])
+    } finally {
+      loadConfig({ env: {}, forceReload: true })
+    }
+  })
+
+  it("lets Claude Code request effort win over the default effort", () => {
+    loadConfig({ env: { CCP_CODEX_DEFAULT_EFFORT: "high" }, forceReload: true })
+    try {
+      const translated = translateRequest({
+        ...baseRequest,
+        output_config: { effort: "low" },
+      })
+
+      expect(translated.reasoning).toEqual({ effort: "low" })
+    } finally {
+      loadConfig({ env: {}, forceReload: true })
+    }
+  })
+
   it("returns only the expected top-level upstream request fields", () => {
     const translated = translateRequest({
       ...baseRequest,
