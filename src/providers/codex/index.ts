@@ -176,6 +176,7 @@ async function handleMessages(body: AnthropicRequest, ctx: RequestContext): Prom
     tools: translated.tools?.length ?? 0,
     hasInstructions: !!translated.instructions,
     requestedMaxTokens: body.max_tokens,
+    requestedEffort: body.output_config?.effort ?? null,
     hasContextManagement: contextManagement !== undefined,
     promptCacheKey: translated.prompt_cache_key,
     reasoningEffort: translated.reasoning?.effort ?? null,
