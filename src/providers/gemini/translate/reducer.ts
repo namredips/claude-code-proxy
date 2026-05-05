@@ -1,5 +1,6 @@
 import { parseSseStream } from "../../../sse.ts"
 import type { Logger } from "../../../log.ts"
+import { cacheGeminiToolSignature } from "./signature-cache.ts"
 
 export class UpstreamStreamError extends Error {
   constructor(
@@ -51,7 +52,7 @@ interface GeminiCandidate {
 
 type GeminiResponsePart =
   | { text?: string; thought?: boolean }
-  | { functionCall?: { id?: string; name?: string; args?: unknown } }
+  | { functionCall?: { id?: string; name?: string; args?: unknown }; thoughtSignature?: string }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -188,6 +189,7 @@ export async function* reduceUpstream(
         }
 
         const id = part.functionCall.id ?? `call_${crypto.randomUUID().replace(/-/g, "")}`
+        cacheGeminiToolSignature(id, part.thoughtSignature)
         const args = JSON.stringify(part.functionCall.args ?? {})
         const index = nextBlockIndex++
         sawToolCalls = true

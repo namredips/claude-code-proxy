@@ -1,6 +1,8 @@
-import { describe, expect, it } from "bun:test"
+import { beforeEach, describe, expect, it } from "bun:test"
 import { encodeSseEvent } from "../../../sse.ts"
 import { reduceUpstream, type ReducerEvent } from "./reducer.ts"
+import { translateRequest } from "./request.ts"
+import { clearGeminiToolSignatures } from "./signature-cache.ts"
 
 const encoder = new TextEncoder()
 
@@ -20,6 +22,10 @@ async function collect(events: unknown[]): Promise<ReducerEvent[]> {
 }
 
 describe("reduceUpstream", () => {
+  beforeEach(() => {
+    clearGeminiToolSignatures()
+  })
+
   it("passes valid function calls through as tool calls", async () => {
     const events = await collect([
       {
@@ -55,6 +61,59 @@ describe("reduceUpstream", () => {
         usage: { promptTokenCount: 5, candidatesTokenCount: 2 },
       },
     ])
+  })
+
+  it("preserves Gemini tool call thought signatures for the next request", async () => {
+    const thoughtSignature = "x".repeat(64)
+    await collect([
+      {
+        response: {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    thoughtSignature,
+                    functionCall: {
+                      id: "call_1",
+                      name: "Read",
+                      args: { file_path: "a.ts" },
+                    },
+                  },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+        },
+      },
+    ])
+
+    const translated = translateRequest({
+      model: "gemini-3.1-pro-preview",
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "call_1",
+              name: "Read",
+              input: { file_path: "a.ts" },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(translated.contents[0]?.parts[0]).toEqual({
+      functionCall: {
+        id: "call_1",
+        name: "Read",
+        args: { file_path: "a.ts" },
+      },
+      thoughtSignature,
+    })
   })
 
   it("turns invalid AskUserQuestion calls into assistant text", async () => {

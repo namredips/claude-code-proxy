@@ -7,6 +7,7 @@ import type {
   AnthropicTool,
 } from "../../../anthropic/schema.ts"
 import { geminiDefaultEffort } from "../../../config.ts"
+import { geminiToolSignature } from "./signature-cache.ts"
 
 export type GeminiEffort = "none" | "low" | "medium" | "high" | "max" | "xhigh"
 
@@ -69,7 +70,7 @@ export type GeminiPart =
   | { text: string; thought?: boolean; thoughtSignature?: string }
   | { inlineData: { mimeType: string; data: string } }
   | { fileData: { fileUri: string; mimeType?: string } }
-  | { functionCall: { id?: string; name: string; args: unknown } }
+  | { functionCall: { id?: string; name: string; args: unknown }; thoughtSignature?: string }
   | { functionResponse: { id?: string; name: string; response: unknown; parts?: GeminiPart[] } }
 
 export interface GeminiTool {
@@ -246,12 +247,14 @@ function pushAssistantContent(
       }
     } else if (block.type === "tool_use") {
       toolNamesById.set(block.id, block.name)
+      const thoughtSignature = geminiToolSignature(block.id)
       parts.push({
         functionCall: {
           id: block.id,
           name: block.name,
           args: block.input ?? {},
         },
+        ...(thoughtSignature ? { thoughtSignature } : {}),
       })
     }
   }
