@@ -2,7 +2,8 @@ import { createLogger, logDir, REDACT_KEYS } from "./log.ts"
 
 import type { AnthropicRequest } from "./anthropic/schema.ts"
 import type { Provider, RequestContext } from "./providers/types.ts"
-import { allSupportedModels, providerForModel } from "./providers/registry.ts"
+import { allSupportedModels, getProvider, providerForModel } from "./providers/registry.ts"
+import { resolveModelRoute } from "./providers/model-routing.ts"
 import { CodexUsageError, getCodexUsage } from "./providers/codex/usage.ts"
 
 const rootLog = createLogger("server")
@@ -132,7 +133,21 @@ function routeProvider(body: AnthropicRequest, reqId: string): Provider | Respon
       `Missing "model" in request body. ${knownModelsMessage()}`,
     )
   }
+  const originalModel = body.model
   body.model = normalizeIncomingModel(body.model)
+  const routed = resolveModelRoute(body.model)
+  if (routed) {
+    rootLog.info("model route", {
+      reqId,
+      originalModel,
+      normalizedModel: body.model,
+      aliasProvider: routed.aliasProvider,
+      routedProvider: routed.provider,
+      routedModel: routed.model,
+    })
+    body.model = routed.model
+    return getProvider(routed.provider)
+  }
   const provider = providerForModel(body.model)
   if (!provider) {
     rootLog.warn("unknown model", { reqId, model: body.model })

@@ -77,7 +77,7 @@ export interface TranslateOptions {
 
 const VALID_EFFORTS = new Set<EffortOverride>(["none", "low", "medium", "high", "xhigh", "max"])
 
-const ANTHROPIC_EFFORTS = new Set(["low", "medium", "high", "max"])
+const ANTHROPIC_EFFORTS = new Set(["low", "medium", "high", "max", "xhigh"])
 
 function assertValidEffort(effort: unknown): void {
   if (effort !== undefined && !ANTHROPIC_EFFORTS.has(effort as string)) {
