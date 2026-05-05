@@ -149,6 +149,12 @@ function printConfigSummary(): void {
   if (cfg.env.CCP_GEMINI_ENABLE_FALLBACK) overrides.push("CCP_GEMINI_ENABLE_FALLBACK (env)")
   else if (fromFile.gemini?.enableFallback !== undefined) overrides.push("gemini.enableFallback (config)")
 
+  if (cfg.env.CCP_GEMINI_ENABLE_GOOGLE_ONE_CREDITS) {
+    overrides.push("CCP_GEMINI_ENABLE_GOOGLE_ONE_CREDITS (env)")
+  } else if (fromFile.gemini?.enableGoogleOneCredits !== undefined) {
+    overrides.push("gemini.enableGoogleOneCredits (config)")
+  }
+
   if (cfg.env.CCP_GEMINI_DEFAULT_EFFORT) overrides.push("CCP_GEMINI_DEFAULT_EFFORT (env)")
   else if (fromFile.gemini?.defaultEffort) overrides.push("gemini.defaultEffort (config)")
 

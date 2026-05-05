@@ -18,6 +18,12 @@ export const FALLBACK_MODELS: Record<string, string[]> = {
   "gemini-3-flash-preview": ["gemini-2.5-flash"],
 }
 
+const GOOGLE_ONE_CREDIT_MODELS = new Set([
+  GEMINI_DEFAULT_MODEL,
+  "gemini-3-pro-preview",
+  GEMINI_SMALL_FAST_MODEL,
+])
+
 export function resolveModel(model: string): string {
   return geminiModel() ?? model
 }
@@ -30,6 +36,10 @@ export function assertAllowedModel(model: string): void {
   if (!ALLOWED_MODELS.has(model)) {
     throw new ModelNotAllowedError(model)
   }
+}
+
+export function isGoogleOneCreditEligibleModel(model: string): boolean {
+  return GOOGLE_ONE_CREDIT_MODELS.has(model)
 }
 
 export class ModelNotAllowedError extends Error {

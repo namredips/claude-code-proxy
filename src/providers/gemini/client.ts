@@ -17,6 +17,7 @@ export interface GeminiResponse {
 
 export interface GeminiSetup {
   project: string
+  googleOneCreditBalance: number | null
 }
 
 export class GeminiError extends Error {
@@ -61,7 +62,11 @@ async function doSetupGemini(ctx: RequestContext): Promise<GeminiSetup> {
   const body = response as {
     cloudaicompanionProject?: string
     currentTier?: { id?: string; name?: string; hasOnboardedPreviously?: boolean }
-    paidTier?: { id?: string; name?: string }
+    paidTier?: {
+      id?: string
+      name?: string
+      availableCredits?: Array<{ creditType?: string; creditAmount?: string }>
+    }
     ineligibleTiers?: Array<{ reasonMessage?: string }>
   }
   const resolvedProject = body.cloudaicompanionProject ?? project
@@ -74,7 +79,12 @@ async function doSetupGemini(ctx: RequestContext): Promise<GeminiSetup> {
         "Gemini Code Assist did not return a project. Set GOOGLE_CLOUD_PROJECT or run Gemini CLI onboarding.",
     )
   }
-  return { project: resolvedProject }
+  const googleOneCreditBalance = googleOneCredits(body.paidTier)
+  ctx.childLogger("gemini.setup").debug("setup complete", {
+    project: resolvedProject,
+    googleOneCreditBalance,
+  })
+  return { project: resolvedProject, googleOneCreditBalance }
 }
 
 export async function postGeminiStream(
@@ -111,8 +121,8 @@ async function attemptPostGeminiStream(
   const resp = await doFetch("streamGenerateContent", body, ctx, log, true)
 
   if (resp.status === 429) {
-    const retryAfter = resp.headers.get("retry-after") || undefined
     const text = await safeText(resp)
+    const retryAfter = resp.headers.get("retry-after") || geminiRetryAfter(text)
     throw new GeminiError(429, "Rate limited", text, { retryAfter })
   }
 
@@ -195,4 +205,44 @@ async function safeText(resp: Response): Promise<string> {
   } catch {
     return ""
   }
+}
+
+function googleOneCredits(
+  paidTier?: { availableCredits?: Array<{ creditType?: string; creditAmount?: string }> },
+): number | null {
+  const credits = paidTier?.availableCredits?.filter((c) => c.creditType === "GOOGLE_ONE_AI")
+  if (!credits?.length) return null
+  return credits.reduce((sum, credit) => {
+    const amount = Number.parseInt(credit.creditAmount ?? "0", 10)
+    return sum + (Number.isFinite(amount) ? amount : 0)
+  }, 0)
+}
+
+export function geminiRetryAfter(detail: string): string | undefined {
+  try {
+    const parsed = JSON.parse(detail) as { error?: { message?: string } }
+    const fromJson = retryAfterFromMessage(parsed.error?.message)
+    if (fromJson) return fromJson
+  } catch {
+    // Fall through to regex scan below.
+  }
+  return retryAfterFromMessage(detail)
+}
+
+function retryAfterFromMessage(message: unknown): string | undefined {
+  if (typeof message !== "string") return undefined
+  const match = /reset\s+after\s+(\d+(?:\.\d+)?)\s*(ms|msec|milliseconds?|s|sec|seconds?|m|min|minutes?)\b/i.exec(
+    message,
+  )
+  if (!match) return undefined
+  const value = Number.parseFloat(match[1] ?? "")
+  if (!Number.isFinite(value)) return undefined
+  const unit = (match[2] ?? "s").toLowerCase()
+  if (unit.startsWith("m") && !unit.startsWith("ms") && !unit.startsWith("msec")) {
+    return String(Math.ceil(value * 60))
+  }
+  if (unit.startsWith("ms") || unit.startsWith("msec") || unit.startsWith("millisecond")) {
+    return String(Math.ceil(value / 1000))
+  }
+  return String(Math.ceil(value))
 }

@@ -1,5 +1,5 @@
 import type { AnthropicRequest } from "../../anthropic/schema.ts"
-import { geminiEnableFallback, logVerbose } from "../../config.ts"
+import { geminiEnableFallback, geminiEnableGoogleOneCredits, logVerbose } from "../../config.ts"
 import type { CliHandlers, Provider, RequestContext } from "../types.ts"
 import { countTokens, countTranslatedTokens } from "./count-tokens.ts"
 import {
@@ -13,6 +13,7 @@ import {
   fallbackChain,
   GEMINI_DEFAULT_MODEL,
   GEMINI_SMALL_FAST_MODEL,
+  isGoogleOneCreditEligibleModel,
   ModelNotAllowedError,
   resolveModel,
 } from "./translate/model-allowlist.ts"
@@ -99,11 +100,19 @@ async function handleMessages(body: AnthropicRequest, ctx: RequestContext): Prom
   }
 
   const setup = await setupGemini(ctx)
+  const enableGoogleOneCredits =
+    geminiEnableGoogleOneCredits() &&
+    setup.googleOneCreditBalance !== null &&
+    setup.googleOneCreditBalance >= 50
   let upstream
   let resolvedModel = requestedModel
   const modelsToTry = geminiEnableFallback() ? fallbackChain(requestedModel) : [requestedModel]
   for (const candidateModel of modelsToTry) {
     const translated = translateRequest({ ...body, model: candidateModel }, { sessionId: ctx.sessionId })
+    const enabledCreditTypes =
+      enableGoogleOneCredits && isGoogleOneCreditEligibleModel(candidateModel)
+        ? ["GOOGLE_ONE_AI"]
+        : undefined
     const localInputTokens = logVerbose() ? countTokens(body) : undefined
     const translatedInputTokens = logVerbose() ? countTranslatedTokens(translated) : undefined
     log.debug("translated request", {
@@ -116,6 +125,7 @@ async function handleMessages(body: AnthropicRequest, ctx: RequestContext): Prom
       promptCacheKey: ctx.sessionId,
       thinkingConfig: translated.config?.generationConfig?.thinkingConfig ?? null,
       maxOutputTokens: translated.config?.generationConfig?.maxOutputTokens,
+      googleOneCreditsEnabled: Boolean(enabledCreditTypes?.length),
     })
     if (logVerbose()) log.debug("translated request body", { body: translated })
 
@@ -125,6 +135,7 @@ async function handleMessages(body: AnthropicRequest, ctx: RequestContext): Prom
           project: setup.project,
           userPromptId: crypto.randomUUID(),
           sessionId: ctx.sessionId,
+          enabledCreditTypes,
         }),
         ctx,
       )

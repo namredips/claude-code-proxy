@@ -533,6 +533,7 @@ directory the auth tokens use, deliberately not `~/Library`) and at
     "smallFastModel": "gemini-3-flash-preview",
     "oauthCredsPath": "~/.gemini/oauth_creds.json",
     "enableFallback": true,
+    "enableGoogleOneCredits": false,
     "defaultEffort": "high"
   },
   "kimi": {
@@ -565,6 +566,7 @@ directory the auth tokens use, deliberately not `~/Library`) and at
 | `CCP_GEMINI_OAUTH_CLIENT_ID` | — | read from installed Gemini CLI | Override Gemini OAuth client ID if Gemini CLI is unavailable                                |
 | `CCP_GEMINI_OAUTH_CLIENT_SECRET` | — | read from installed Gemini CLI | Override Gemini OAuth client secret if Gemini CLI is unavailable                            |
 | `CCP_GEMINI_ENABLE_FALLBACK` | `gemini.enableFallback` | `true`                    | Enable preview-model fallback chains                                                           |
+| `CCP_GEMINI_ENABLE_GOOGLE_ONE_CREDITS` | `gemini.enableGoogleOneCredits` | `false` | Opt in to Gemini Code Assist Google One AI credits for eligible preview models when available |
 | `CCP_GEMINI_DEFAULT_EFFORT` | `gemini.defaultEffort` | unset                      | Default Gemini thinking effort when Claude Code does not send one (`none`, `low`, `medium`, `high`, `max`, `xhigh`) |
 | `CCP_GEMINI_CODE_ASSIST_ENDPOINT` | `gemini.endpoint` | `https://cloudcode-pa.googleapis.com` | Override Gemini Code Assist endpoint (debugging only)                                 |
 | `CCP_GEMINI_CODE_ASSIST_API_VERSION` | `gemini.apiVersion` | `v1internal`         | Override Gemini Code Assist API version (debugging only)                                      |

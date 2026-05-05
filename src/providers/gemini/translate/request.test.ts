@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test"
 import { loadConfig } from "../../../config.ts"
-import { translateRequest } from "./request.ts"
+import { toCodeAssistGenerateRequest, translateRequest } from "./request.ts"
 import type { AnthropicRequest } from "../../../anthropic/schema.ts"
 
 afterEach(() => {
@@ -81,5 +81,27 @@ describe("translateRequest", () => {
       includeThoughts: true,
       thinkingLevel: "MEDIUM",
     })
+  })
+
+  it("sets Code Assist enabled credit types only when provided", () => {
+    const translated = translateRequest({
+      model: "gemini-3.1-pro-preview",
+      messages: [{ role: "user", content: "hello" }],
+    })
+
+    expect(
+      toCodeAssistGenerateRequest(translated, {
+        project: "project",
+        userPromptId: "prompt",
+        enabledCreditTypes: ["GOOGLE_ONE_AI"],
+      }).enabled_credit_types,
+    ).toEqual(["GOOGLE_ONE_AI"])
+
+    expect(
+      toCodeAssistGenerateRequest(translated, {
+        project: "project",
+        userPromptId: "prompt",
+      }).enabled_credit_types,
+    ).toBeUndefined()
   })
 })

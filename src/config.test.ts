@@ -15,6 +15,7 @@ import {
   geminiSmallFastModel,
   geminiOauthCredsPath,
   geminiEnableFallback,
+  geminiEnableGoogleOneCredits,
   geminiDefaultEffort,
   kimiUserAgent,
   kimiOauthHost,
@@ -56,6 +57,7 @@ describe("config defaults", () => {
     expect(geminiSmallFastModel()).toBeUndefined()
     expect(geminiOauthCredsPath()).toBeUndefined()
     expect(geminiEnableFallback()).toBe(true)
+    expect(geminiEnableGoogleOneCredits()).toBe(false)
     expect(geminiDefaultEffort()).toBeUndefined()
     expect(kimiUserAgent("default-kimi-ua")).toBe("default-kimi-ua")
     expect(kimiOauthHost()).toBe("https://auth.kimi.com")
@@ -100,6 +102,7 @@ describe("file overrides default", () => {
           smallFastModel: "gemini-3-flash-preview",
           oauthCredsPath: "/tmp/gemini-oauth.json",
           enableFallback: false,
+          enableGoogleOneCredits: true,
           defaultEffort: "max",
         },
       }),
@@ -110,6 +113,7 @@ describe("file overrides default", () => {
     expect(geminiSmallFastModel()).toBe("gemini-3-flash-preview")
     expect(geminiOauthCredsPath()).toBe("/tmp/gemini-oauth.json")
     expect(geminiEnableFallback()).toBe(false)
+    expect(geminiEnableGoogleOneCredits()).toBe(true)
     expect(geminiDefaultEffort()).toBe("max")
   })
 
@@ -158,6 +162,12 @@ describe("env overrides file", () => {
     writeFileSync(configPath, JSON.stringify({ gemini: { enableFallback: true } }))
     setEnv({ CCP_GEMINI_ENABLE_FALLBACK: "false" })
     expect(geminiEnableFallback()).toBe(false)
+  })
+
+  it("CCP_GEMINI_ENABLE_GOOGLE_ONE_CREDITS env can enable credit usage", () => {
+    writeFileSync(configPath, JSON.stringify({ gemini: { enableGoogleOneCredits: false } }))
+    setEnv({ CCP_GEMINI_ENABLE_GOOGLE_ONE_CREDITS: "1" })
+    expect(geminiEnableGoogleOneCredits()).toBe(true)
   })
 
   it("CCP_USER_AGENT env (generic fallback) is preferred over file", () => {

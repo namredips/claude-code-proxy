@@ -20,6 +20,7 @@ export interface CodeAssistGenerateRequest {
   model: string
   project: string
   user_prompt_id: string
+  enabled_credit_types?: string[]
   request: {
     contents: GeminiContent[]
     systemInstruction?: GeminiContent
@@ -130,7 +131,12 @@ export function translateRequest(
 
 export function toCodeAssistGenerateRequest(
   req: GeminiGenerateRequest,
-  opts: { project: string; userPromptId: string; sessionId?: string } = {
+  opts: {
+    project: string
+    userPromptId: string
+    sessionId?: string
+    enabledCreditTypes?: string[]
+  } = {
     project: "",
     userPromptId: "",
   },
@@ -139,6 +145,7 @@ export function toCodeAssistGenerateRequest(
     model: req.model,
     project: opts.project,
     user_prompt_id: opts.userPromptId,
+    ...(opts.enabledCreditTypes?.length ? { enabled_credit_types: opts.enabledCreditTypes } : {}),
     request: {
       contents: req.contents,
       systemInstruction: req.config?.systemInstruction,

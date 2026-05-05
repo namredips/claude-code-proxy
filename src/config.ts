@@ -26,6 +26,7 @@ export interface FileConfig {
     smallFastModel?: string
     oauthCredsPath?: string
     enableFallback?: boolean
+    enableGoogleOneCredits?: boolean
     defaultEffort?: string
     endpoint?: string
     apiVersion?: string
@@ -116,12 +117,22 @@ function validate(raw: unknown): FileConfig {
 
   const gemini = validateStringSection(
     "gemini",
-    ["model", "smallFastModel", "oauthCredsPath", "enableFallback", "defaultEffort", "endpoint", "apiVersion"],
+    [
+      "model",
+      "smallFastModel",
+      "oauthCredsPath",
+      "enableFallback",
+      "enableGoogleOneCredits",
+      "defaultEffort",
+      "endpoint",
+      "apiVersion",
+    ],
     {
       model: "string",
       smallFastModel: "string",
       oauthCredsPath: "string",
       enableFallback: "boolean",
+      enableGoogleOneCredits: "boolean",
       defaultEffort: "string",
       endpoint: "string",
       apiVersion: "string",
@@ -277,6 +288,13 @@ export function geminiEnableFallback(): boolean {
   const raw = emptyOrUnset(c.env.CCP_GEMINI_ENABLE_FALLBACK)
   if (raw !== undefined) return !["0", "false", "no", "off"].includes(raw.toLowerCase())
   return c.file.gemini?.enableFallback ?? true
+}
+
+export function geminiEnableGoogleOneCredits(): boolean {
+  const c = getConfig()
+  const raw = emptyOrUnset(c.env.CCP_GEMINI_ENABLE_GOOGLE_ONE_CREDITS)
+  if (raw !== undefined) return !["0", "false", "no", "off"].includes(raw.toLowerCase())
+  return c.file.gemini?.enableGoogleOneCredits ?? false
 }
 
 export function geminiDefaultEffort(): string | undefined {
