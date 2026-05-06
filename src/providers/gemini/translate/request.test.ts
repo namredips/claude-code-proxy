@@ -49,6 +49,58 @@ describe("translateRequest", () => {
     })
   })
 
+  it("keeps parallel tool responses in the same Gemini user turn", () => {
+    const req: AnthropicRequest = {
+      model: "gemini-3.1-pro-preview",
+      messages: [
+        { role: "user", content: "Check both files." },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_a", name: "Read", input: { file_path: "a.ts" } },
+            { type: "tool_use", id: "toolu_b", name: "Read", input: { file_path: "b.ts" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_a", content: "a contents" },
+            { type: "tool_result", tool_use_id: "toolu_b", content: "b contents" },
+          ],
+        },
+      ],
+      tools: [{ name: "Read", input_schema: { type: "object" } }],
+    }
+
+    const translated = translateRequest(req)
+
+    expect(translated.contents[1]?.parts).toHaveLength(2)
+    expect(translated.contents[1]?.parts[0]).toEqual({
+      functionCall: { id: "toolu_a", name: "Read", args: { file_path: "a.ts" } },
+    })
+    expect(translated.contents[1]?.parts[1]).toEqual({
+      functionCall: { id: "toolu_b", name: "Read", args: { file_path: "b.ts" } },
+    })
+    expect(translated.contents[2]?.role).toBe("user")
+    expect(translated.contents[2]?.parts).toEqual([
+      {
+        functionResponse: {
+          id: "toolu_a",
+          name: "Read",
+          response: { output: "a contents" },
+        },
+      },
+      {
+        functionResponse: {
+          id: "toolu_b",
+          name: "Read",
+          response: { output: "b contents" },
+        },
+      },
+    ])
+    expect(translated.contents).toHaveLength(3)
+  })
+
   it("maps max effort to Gemini 3 high thinking level", () => {
     const req: AnthropicRequest = {
       model: "gemini-3.1-pro-preview",

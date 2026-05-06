@@ -205,27 +205,35 @@ function pushUserContents(
   toolNamesById: Map<string, string>,
 ): void {
   let parts: GeminiPart[] = []
-  const flush = () => {
+  let toolResponseParts: GeminiPart[] = []
+  const flushParts = () => {
     if (!parts.length) return
     out.push({ role: "user", parts })
     parts = []
   }
+  const flushToolResponseParts = () => {
+    if (!toolResponseParts.length) return
+    out.push({ role: "user", parts: toolResponseParts })
+    toolResponseParts = []
+  }
 
   for (const block of blocks) {
     if (block.type === "text") {
+      flushToolResponseParts()
       parts.push({ text: block.text })
     } else if (block.type === "image") {
+      flushToolResponseParts()
       parts.push(imageToGeminiPart(block))
     } else if (block.type === "tool_result") {
-      flush()
+      flushParts()
       const name = toolNamesById.get(block.tool_use_id) ?? "tool"
-      out.push({
-        role: "user",
-        parts: toolResultParts(name, block.tool_use_id, block.content, block.is_error),
-      })
+      toolResponseParts.push(
+        ...toolResultParts(name, block.tool_use_id, block.content, block.is_error),
+      )
     }
   }
-  flush()
+  flushParts()
+  flushToolResponseParts()
 }
 
 function pushAssistantContent(
