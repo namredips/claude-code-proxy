@@ -248,6 +248,51 @@ used percentage, window duration, and reset time. It is intended for statusline
 or monitoring integrations and is cached briefly by the proxy to avoid polling
 ChatGPT on every prompt render.
 
+The proxy also exposes the latest routed request model for statusline
+integrations:
+
+```sh
+curl http://localhost:18765/_claude-code-proxy/status | jq
+```
+
+Pass `?session_id=<claude-code-session-id>` to prefer the latest model seen for a
+specific Claude Code session.
+
+## macOS launchd service
+
+For multiple Claude Code sessions, run the proxy as a long-lived LaunchAgent
+instead of letting each wrapper own a child proxy process. The repo includes a
+helper that writes machine-local plist files to `~/Library/LaunchAgents`:
+
+```sh
+scripts/launchd.sh write all      # write plist files only
+scripts/launchd.sh install all    # write and start services when ports are free
+scripts/launchd.sh status all
+```
+
+The default services are:
+
+- `com.namredips.claude-code-proxy.codex` on port `18765`
+- `com.namredips.claude-code-proxy.gemini` on port `18766`
+
+The plist files point at
+`/Users/jefcox/bin/claude-code-proxy-codex-usage` by default. Override that with
+`CCP_LAUNCHD_BINARY=/path/to/claude-code-proxy scripts/launchd.sh install all`
+when needed.
+
+After rebuilding the local binary, restart the loaded services so launchd drops
+the old process image and starts the new one:
+
+```sh
+bun build ./src/cli.ts --compile --outfile /Users/jefcox/bin/claude-code-proxy-codex-usage
+scripts/launchd.sh restart all
+```
+
+If a wrapper-owned proxy is already listening on a service port, the helper will
+write the plist but skip starting that service. Exit the owning Claude Code
+session, then run `scripts/launchd.sh restart codex` or
+`scripts/launchd.sh restart gemini`.
+
 ## Providers
 
 ### Codex (ChatGPT)

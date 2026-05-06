@@ -5,6 +5,7 @@ import type { Provider, RequestContext } from "./providers/types.ts"
 import { allSupportedModels, getProvider, providerForModel } from "./providers/registry.ts"
 import { resolveModelRoute } from "./providers/model-routing.ts"
 import { CodexUsageError, getCodexUsage } from "./providers/codex/usage.ts"
+import { getProxyStatus, recordProxyRequest } from "./proxy-status.ts"
 
 const rootLog = createLogger("server")
 
@@ -80,23 +81,49 @@ async function route(req: Request, url: URL, reqId: string): Promise<Response> {
     }
   }
 
+  if (req.method === "GET" && url.pathname === "/_claude-code-proxy/status") {
+    return jsonResponse(getProxyStatus(url.searchParams.get("session_id") || undefined))
+  }
+
   if (req.method === "POST" && url.pathname === "/v1/messages/count_tokens") {
     const body = await parseJsonBody(req)
     if (body instanceof Response) return body
+    const requestModel = body.model
     const provider = routeProvider(body, reqId)
     if (provider instanceof Response) return provider
     const ctx = buildCtx(req, reqId, provider.name)
     ctx.childLogger("server").info("dispatch", { model: body.model })
+    recordProxyRequest({
+      req_id: reqId,
+      provider: provider.name,
+      kind: "count_tokens",
+      request_model: requestModel,
+      routed_model: body.model,
+      session_id: ctx.sessionId,
+      session_seq: ctx.sessionSeq,
+      updated_at: new Date().toISOString(),
+    })
     return provider.handleCountTokens(body, ctx)
   }
 
   if (req.method === "POST" && url.pathname === "/v1/messages") {
     const body = await parseJsonBody(req)
     if (body instanceof Response) return body
+    const requestModel = body.model
     const provider = routeProvider(body, reqId)
     if (provider instanceof Response) return provider
     const ctx = buildCtx(req, reqId, provider.name)
     ctx.childLogger("server").info("dispatch", { model: body.model })
+    recordProxyRequest({
+      req_id: reqId,
+      provider: provider.name,
+      kind: "messages",
+      request_model: requestModel,
+      routed_model: body.model,
+      session_id: ctx.sessionId,
+      session_seq: ctx.sessionSeq,
+      updated_at: new Date().toISOString(),
+    })
     return provider.handleMessages(body, ctx)
   }
 
